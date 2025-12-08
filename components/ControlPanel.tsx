@@ -1,7 +1,7 @@
 import React from 'react';
 import { OptimizationParams, ScenarioType, Node, AlgorithmType } from '../types';
 import { SCENARIOS } from '../data/scenarios';
-import { Play, RotateCcw, Cpu, Zap, Thermometer, Settings, Globe, Navigation, Brain } from 'lucide-react';
+import { Play, RotateCcw, Cpu, Zap, Thermometer, Settings, Globe, Navigation, Brain, ExternalLink } from 'lucide-react';
 
 interface ControlPanelProps {
   params: OptimizationParams;
@@ -246,6 +246,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             </>
           )}
         </button>
+
+        <div className="mt-4 flex justify-center">
+            <a 
+              href="https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221VZYKLWVWL2clUc2famXWpAjrbCMfDh_S%22%5D,%22action%22:%22open%22,%22userId%22:%22105952408949759950015%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing"
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-[10px] text-slate-600 hover:text-qcyan transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span>View System Prompt</span>
+            </a>
+        </div>
       </div>
     </div>
   );
