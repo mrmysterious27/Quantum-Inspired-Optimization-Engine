@@ -29,7 +29,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
     }, [bestRoute, nodes]);
 
   return (
-    <div className="w-full h-full relative bg-qdark overflow-hidden rounded-xl border border-slate-800 shadow-inner">
+    <div className={`w-full h-full relative bg-qdark overflow-hidden rounded-xl border transition-colors duration-300 shadow-inner ${tunneling ? 'border-qpurple/50 shadow-[inset_0_0_30px_rgba(188,19,254,0.15)]' : 'border-slate-800'}`}>
       {/* Grid Background */}
       <div 
         className="absolute inset-0 opacity-20 pointer-events-none"
@@ -53,6 +53,12 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
             <feGaussianBlur stdDeviation="1" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
+          
+          <filter id="tunnel-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
           {/* Arrow Marker for Direction - Made Smaller */}
           <marker
             id="arrowhead"
@@ -76,6 +82,21 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
             strokeWidth="0.3"
             strokeOpacity="0.3"
             strokeDasharray="1 1"
+          />
+        )}
+
+        {/* Tunneling Route Glow (Underlay) */}
+        {tunneling && pathD && (
+          <path
+            d={pathD}
+            fill="none"
+            stroke="#bc13fe"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="animate-pulse" 
+            filter="url(#tunnel-glow)"
+            opacity="0.6"
           />
         )}
 
@@ -204,7 +225,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
       </svg>
       
       {tunneling && (
-        <div className="absolute top-4 right-4 bg-qpurple/20 border border-qpurple text-qpurple px-3 py-1 rounded-full text-xs font-bold animate-pulse backdrop-blur-sm">
+        <div className="absolute top-4 right-4 bg-qpurple/20 border border-qpurple text-qpurple px-3 py-1 rounded-full text-xs font-bold animate-pulse backdrop-blur-sm shadow-[0_0_15px_rgba(188,19,254,0.3)]">
           QUANTUM TUNNELING EVENT
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Node, OptimizationParams, OptimizationResponse, AppState, ScenarioType } from './types';
 import { SCENARIOS } from './data/scenarios';
 import ControlPanel from './components/ControlPanel';
@@ -26,6 +26,7 @@ const App: React.FC = () => {
       steps: 5000,
       init_temp: 50,
       tunneling_rate: 0.25,
+      algorithm: 'quantum_annealing',
     },
     result: null,
     isOptimizing: false,
@@ -34,6 +35,7 @@ const App: React.FC = () => {
     error: null,
     scenario: 'random',
     startNodeId: 0,
+    executionTime: 0,
   });
 
   // Handle Scenario Switching
@@ -54,6 +56,7 @@ const App: React.FC = () => {
       playbackIndex: -1,
       isPlaying: false,
       startNodeId: 0, // Reset start node to first available
+      executionTime: 0,
     }));
   }, [state.scenario, nodeCount]);
 
@@ -74,6 +77,7 @@ const App: React.FC = () => {
       playbackIndex: -1,
       isPlaying: false,
       startNodeId: 0,
+      executionTime: 0,
     }));
   };
 
@@ -85,11 +89,13 @@ const App: React.FC = () => {
   };
 
   const handleOptimize = async () => {
-    setState(prev => ({ ...prev, isOptimizing: true, error: null, result: null, playbackIndex: -1 }));
+    setState(prev => ({ ...prev, isOptimizing: true, error: null, result: null, playbackIndex: -1, executionTime: 0 }));
+    const startTime = performance.now();
     try {
       // Pass the scenario description as context
       const context = SCENARIOS[state.scenario].description;
       const result = await runOptimization(state.nodes, state.params, state.startNodeId, context);
+      const endTime = performance.now();
       
       setState(prev => ({
         ...prev,
@@ -97,6 +103,7 @@ const App: React.FC = () => {
         isOptimizing: false,
         playbackIndex: 0,
         isPlaying: true, // Auto play on success
+        executionTime: endTime - startTime
       }));
     } catch (err: any) {
       setState(prev => ({
@@ -107,33 +114,30 @@ const App: React.FC = () => {
     }
   };
 
-  // Animation Loop
-  const animationRef = useRef<number>();
-  
-  const tick = useCallback(() => {
-    setState(prev => {
-      if (!prev.isPlaying || !prev.result || prev.playbackIndex >= prev.result.iterations.length - 1) {
-        return { ...prev, isPlaying: false };
-      }
-      return { ...prev, playbackIndex: prev.playbackIndex + 1 };
-    });
-    animationRef.current = requestAnimationFrame(() => {
-        // Slow down animation slightly for visibility
-        setTimeout(tick, 200); 
-    });
-  }, []);
-
+  // Animation Loop using setInterval for stability
   useEffect(() => {
-    if (state.isPlaying) {
-      animationRef.current = requestAnimationFrame(tick);
-    } else if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [state.isPlaying, tick]);
+    let intervalId: ReturnType<typeof setInterval>;
 
+    if (state.isPlaying && state.result) {
+      intervalId = setInterval(() => {
+        setState(prev => {
+          if (!prev.result) return prev;
+          
+          // Check if we reached the end
+          if (prev.playbackIndex >= prev.result.iterations.length - 1) {
+            return { ...prev, isPlaying: false };
+          }
+          
+          // Advance frame
+          return { ...prev, playbackIndex: prev.playbackIndex + 1 };
+        });
+      }, 2000); // 2000ms (2s) per frame as requested
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [state.isPlaying, state.result]);
 
   // Derived state for Visualizer
   const currentIteration = state.result && state.playbackIndex >= 0 
@@ -170,6 +174,7 @@ const App: React.FC = () => {
         <div className="flex justify-between items-center bg-qpanel p-3 rounded-lg border border-slate-800">
           <div className="text-sm font-mono text-slate-400">
             CONTEXT: <span className="text-white mr-4">{SCENARIOS[state.scenario].label}</span>
+            ALGORITHM: <span className="text-qcyan mr-4 uppercase">{state.params.algorithm.replace('_', ' ')}</span>
             STATUS: <span className={state.isOptimizing ? "text-yellow-400 animate-pulse" : "text-qcyan"}>
               {state.isOptimizing ? "OPTIMIZING..." : state.result ? "COMPLETE" : "READY"}
             </span>
@@ -181,7 +186,14 @@ const App: React.FC = () => {
                  FRAME {state.playbackIndex + 1} / {state.result.iterations.length}
                </span>
                <button 
-                 onClick={() => setState(prev => ({...prev, isPlaying: !prev.isPlaying}))}
+                 onClick={() => setState(prev => {
+                   // If play is clicked at the end, restart
+                   const isAtEnd = prev.result && prev.playbackIndex >= prev.result.iterations.length - 1;
+                   if (isAtEnd) {
+                      return { ...prev, playbackIndex: 0, isPlaying: true };
+                   }
+                   return { ...prev, isPlaying: !prev.isPlaying };
+                 })}
                  className="hover:text-qcyan transition-colors"
                >
                  {state.isPlaying ? <PauseCircle className="w-6 h-6" /> : <PlayCircle className="w-6 h-6" />}
@@ -230,6 +242,7 @@ const App: React.FC = () => {
               data={state.result} 
               currentStepIndex={state.playbackIndex} 
               nodes={state.nodes}
+              executionTime={state.executionTime}
             />
           </div>
         </div>

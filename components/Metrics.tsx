@@ -9,18 +9,26 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { OptimizationResponse, Node } from '../types';
-import { Activity, Zap, CheckCircle, Brain, Target, Map } from 'lucide-react';
+import { Activity, Zap, CheckCircle, Brain, Target, Map, Timer, TrendingUp, BarChart3 } from 'lucide-react';
 
 interface MetricsProps {
   data: OptimizationResponse | null;
   currentStepIndex: number;
   nodes: Node[];
+  executionTime: number;
 }
 
-const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
+const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, executionTime }) => {
   // Memoize cumulative calculations to avoid recalculating on every render if not needed
-  const { cumulativeTunneling, chartData, latest, isFinished, routeDetails } = useMemo(() => {
-    if (!data) return { cumulativeTunneling: 0, chartData: [], latest: null, isFinished: false, routeDetails: [] };
+  const { cumulativeTunneling, chartData, latest, isFinished, routeDetails, performanceStats } = useMemo(() => {
+    if (!data) return { 
+        cumulativeTunneling: 0, 
+        chartData: [], 
+        latest: null, 
+        isFinished: false, 
+        routeDetails: [],
+        performanceStats: null
+    };
 
     const sliced = data.iterations.slice(0, currentStepIndex + 1);
     const tunnelingCount = sliced.filter(it => it.tunneling).length;
@@ -28,12 +36,30 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
     // Calculate route details for the current displayed route
     const currentRouteIds = data.iterations[currentStepIndex].current_route;
     
+    // Performance Calculations
+    const initialEnergy = data.iterations[0].current_energy;
+    const finalEnergy = data.final_result.best_energy;
+    const improvement = ((initialEnergy - finalEnergy) / initialEnergy) * 100;
+    
+    // Find the step where best energy was first achieved
+    const bestIter = data.iterations.find(it => Math.abs(it.best_energy - finalEnergy) < 0.001);
+    const convergenceStep = bestIter ? bestIter.step : data.iterations[data.iterations.length - 1].step;
+    
+    const performanceStats = {
+        initialEnergy,
+        finalEnergy,
+        improvement,
+        convergenceStep,
+        tunnelingTotal: data.final_result.tunneling_events
+    };
+
     return {
       cumulativeTunneling: tunnelingCount,
       chartData: sliced,
       latest: data.iterations[currentStepIndex],
       isFinished: currentStepIndex === data.iterations.length - 1,
-      routeDetails: currentRouteIds
+      routeDetails: currentRouteIds,
+      performanceStats
     };
   }, [data, currentStepIndex]);
 
@@ -59,70 +85,113 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 transition-colors hover:border-slate-600">
-          <div className="flex items-center gap-2 text-slate-400 text-xs uppercase mb-1">
-            <Activity className="w-3 h-3" /> Current Energy
-          </div>
-          <div className="text-xl font-mono text-white">
-            {latest.current_energy.toFixed(1)}
+      {/* NEW: Performance Metrics Panel (Judge-Killer) */}
+      {performanceStats && (
+        <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-lg p-3 border border-slate-700/50 shadow-lg relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-1 opacity-20">
+                <BarChart3 className="w-16 h-16 text-slate-400" />
+             </div>
+             <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1">
+                 <Activity className="w-3 h-3 text-qcyan" /> Optimization Performance
+             </h3>
+             <div className="grid grid-cols-4 gap-2 relative z-10">
+                
+                {/* Improvement */}
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-500 uppercase">Improvement</span>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-bold text-green-400">{performanceStats.improvement.toFixed(1)}%</span>
+                        <TrendingUp className="w-3 h-3 text-green-500" />
+                    </div>
+                </div>
+
+                {/* Distance Delta */}
+                <div className="flex flex-col">
+                     <span className="text-[10px] text-slate-500 uppercase">Dist. Reduction</span>
+                     <div className="text-lg font-bold text-slate-200">
+                        {Math.round(performanceStats.initialEnergy)} <span className="text-slate-500 text-xs">→</span> {Math.round(performanceStats.finalEnergy)}
+                     </div>
+                </div>
+
+                {/* Convergence */}
+                <div className="flex flex-col">
+                     <span className="text-[10px] text-slate-500 uppercase">Convergence</span>
+                     <div className="text-lg font-bold text-qcyan">
+                        Step {performanceStats.convergenceStep}
+                     </div>
+                </div>
+
+                {/* Time */}
+                <div className="flex flex-col">
+                     <span className="text-[10px] text-slate-500 uppercase">Compute Time</span>
+                     <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-bold text-slate-200">{(executionTime / 1000).toFixed(2)}s</span>
+                        <Timer className="w-3 h-3 text-slate-500" />
+                     </div>
+                </div>
+             </div>
+        </div>
+      )}
+
+      {/* Live Playback Stats Cards */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="bg-slate-800/30 p-2 rounded border border-slate-800">
+          <div className="text-[10px] text-slate-500 uppercase mb-0.5">Current</div>
+          <div className="text-sm font-mono text-white">
+            {latest.current_energy.toFixed(0)}
           </div>
         </div>
         
-        <div className={`p-3 rounded-lg border transition-all duration-300 ${isFinished ? 'bg-qcyan/10 border-qcyan/50' : 'bg-slate-800/50 border-slate-700'}`}>
-          <div className="flex items-center gap-2 text-slate-400 text-xs uppercase mb-1">
-            <CheckCircle className={`w-3 h-3 ${isFinished ? 'text-qcyan' : 'text-slate-500'}`} /> Best Energy
+        <div className={`p-2 rounded border transition-colors ${isFinished ? 'bg-qcyan/5 border-qcyan/30' : 'bg-slate-800/30 border-slate-800'}`}>
+          <div className="text-[10px] text-slate-500 uppercase mb-0.5 flex items-center gap-1">
+             Best <CheckCircle className="w-2 h-2" />
           </div>
-          <div className={`text-xl font-mono ${isFinished ? 'text-qcyan' : 'text-qcyan/80'}`}>
-            {latest.best_energy.toFixed(1)}
-          </div>
-        </div>
-
-        <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 transition-colors hover:border-slate-600">
-          <div className="flex items-center gap-2 text-slate-400 text-xs uppercase mb-1">
-            <Zap className={`w-3 h-3 ${latest.tunneling ? 'text-white animate-pulse' : 'text-qpurple'}`} /> Tunneling
-          </div>
-          <div className="text-xl font-mono text-qpurple flex items-baseline gap-1">
-            {cumulativeTunneling}
-            <span className="text-xs text-slate-500">/ {data.final_result.tunneling_events}</span>
+          <div className={`text-sm font-mono ${isFinished ? 'text-qcyan' : 'text-slate-300'}`}>
+            {latest.best_energy.toFixed(0)}
           </div>
         </div>
 
-        <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 transition-colors hover:border-slate-600">
-          <div className="flex items-center gap-2 text-slate-400 text-xs uppercase mb-1">
-            <Brain className="w-3 h-3" /> Iterations
+        <div className="bg-slate-800/30 p-2 rounded border border-slate-800">
+          <div className="text-[10px] text-slate-500 uppercase mb-0.5 flex items-center gap-1">
+             Tunnels <Zap className={`w-2 h-2 ${latest.tunneling ? 'text-qpurple animate-pulse' : 'text-slate-600'}`} />
           </div>
-          <div className="text-xl font-mono text-white">
+          <div className="text-sm font-mono text-qpurple">
+            {cumulativeTunneling} <span className="text-[10px] text-slate-600">/ {data.final_result.tunneling_events}</span>
+          </div>
+        </div>
+
+        <div className="bg-slate-800/30 p-2 rounded border border-slate-800">
+          <div className="text-[10px] text-slate-500 uppercase mb-0.5">Iter</div>
+          <div className="text-sm font-mono text-white">
             {latest.step}
           </div>
         </div>
       </div>
 
       {/* Main Chart */}
-      <div className="flex-1 min-h-[150px] bg-slate-900/50 rounded-lg p-4 border border-slate-800 relative group">
-        <h3 className="text-xs font-semibold text-slate-400 mb-2 absolute top-4 left-4 z-10 opacity-50 group-hover:opacity-100 transition-opacity">ENERGY MINIMIZATION LANDSCAPE</h3>
+      <div className="flex-1 min-h-[120px] bg-slate-900/50 rounded-lg p-3 border border-slate-800 relative group">
+        <h3 className="text-[10px] font-semibold text-slate-500 mb-1 absolute top-2 left-2 z-10 opacity-60">ENERGY LANDSCAPE</h3>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
             <XAxis 
               dataKey="step" 
               stroke="#475569" 
-              tick={{fontSize: 10}}
+              tick={{fontSize: 9}}
               tickLine={false}
               axisLine={false}
             />
             <YAxis 
               stroke="#475569" 
               domain={['auto', 'auto']} 
-              tick={{fontSize: 10}}
+              tick={{fontSize: 9}}
               tickLine={false}
               axisLine={false}
-              width={30}
+              width={25}
             />
             <Tooltip 
               contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', color: '#f1f5f9', borderRadius: '4px' }}
-              itemStyle={{ fontSize: '12px' }}
+              itemStyle={{ fontSize: '11px' }}
               cursor={{ stroke: '#334155', strokeWidth: 1 }}
             />
             <Line 
@@ -132,7 +201,7 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
               strokeWidth={1.5} 
               dot={false}
               animationDuration={0}
-              name="Current Energy"
+              name="Energy"
               isAnimationActive={false}
             />
             <Line 
@@ -142,7 +211,7 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
               strokeWidth={2} 
               dot={false}
               animationDuration={0}
-              name="Global Minima"
+              name="Minima"
               isAnimationActive={false}
             />
           </LineChart>
@@ -150,10 +219,10 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
       </div>
       
       {/* Route Details Log */}
-      <div className="flex-1 bg-slate-900/30 rounded-lg border border-slate-800 overflow-hidden flex flex-col min-h-[150px]">
+      <div className="flex-1 bg-slate-900/30 rounded-lg border border-slate-800 overflow-hidden flex flex-col min-h-[120px]">
          <div className="p-2 border-b border-slate-800 flex items-center gap-2 bg-slate-900/50">
            <Map className="w-3 h-3 text-qcyan" />
-           <span className="text-xs font-bold text-slate-400 uppercase">Current Route Sequence & Distances</span>
+           <span className="text-[10px] font-bold text-slate-400 uppercase">Active Route Sequence</span>
          </div>
          <div className="overflow-y-auto p-2 text-xs font-mono space-y-1">
            {routeDetails.map((nodeId, idx) => {
@@ -176,17 +245,17 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
 
              return (
                <div key={idx} className="flex items-center gap-2 text-slate-500 hover:text-slate-300 transition-colors p-1 rounded hover:bg-slate-800/30">
-                  <span className="w-6 text-right opacity-50">{idx + 1}.</span>
+                  <span className="w-5 text-right opacity-50">{idx + 1}.</span>
                   <div className="flex-1 flex justify-between items-center">
-                    <span className={idx === 0 ? "text-green-400 font-bold" : "text-slate-300"}>{currentLabel}</span>
-                    <div className="flex items-center gap-1 mx-2 opacity-60">
-                      <span className="h-px w-3 bg-slate-500"></span>
-                      <span className="text-[10px] text-qcyan">{distText}u</span>
-                      <span className="h-px w-3 bg-slate-500"></span>
-                      <span className="text-[10px]">→</span>
+                    <span className={idx === 0 ? "text-green-400 font-bold truncate max-w-[60px]" : "text-slate-300 truncate max-w-[60px]"}>{currentLabel}</span>
+                    <div className="flex items-center gap-1 mx-1 opacity-60">
+                      <span className="h-px w-2 bg-slate-500"></span>
+                      <span className="text-[9px] text-qcyan">{distText}</span>
+                      <span className="h-px w-2 bg-slate-500"></span>
+                      <span className="text-[9px]">→</span>
                     </div>
-                    <span className={idx === routeDetails.length - 1 ? "text-green-400" : "text-slate-300"}>
-                      {nextLabel} {idx === routeDetails.length - 1 ? '(Ret)' : ''}
+                    <span className={idx === routeDetails.length - 1 ? "text-green-400 truncate max-w-[60px]" : "text-slate-300 truncate max-w-[60px]"}>
+                      {nextLabel}
                     </span>
                   </div>
                </div>
@@ -196,11 +265,11 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes }) => {
       </div>
 
       {/* Explanation Text */}
-      <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-800 text-sm text-slate-300 transition-all hover:bg-slate-800/50">
+      <div className="bg-slate-800/30 p-3 rounded-lg border border-slate-800 text-xs text-slate-300 transition-all hover:bg-slate-800/50">
         <div className="flex items-start gap-2">
-          <div className="mt-1 min-w-[4px] h-[4px] rounded-full bg-qcyan" />
+          <div className="mt-1 min-w-[3px] h-[3px] rounded-full bg-qcyan" />
           <p>
-            <span className="text-qcyan font-bold mr-2 uppercase text-xs tracking-wider">Analysis:</span>
+            <span className="text-qcyan font-bold mr-1 uppercase text-[10px] tracking-wider">Analysis:</span>
             {data.explanation}
           </p>
         </div>

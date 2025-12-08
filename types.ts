@@ -5,10 +5,13 @@ export interface Node {
   label?: string; // Optional label for real-world locations
 }
 
+export type AlgorithmType = 'quantum_annealing' | 'simulated_annealing' | 'greedy' | 'random';
+
 export interface OptimizationParams {
   steps: number;
   init_temp: number;
   tunneling_rate: number;
+  algorithm: AlgorithmType;
 }
 
 export interface IterationData {
@@ -52,4 +55,5 @@ export interface AppState {
   error: string | null;
   scenario: ScenarioType;
   startNodeId: number;
+  executionTime: number;
 }

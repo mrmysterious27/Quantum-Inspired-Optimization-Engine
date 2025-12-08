@@ -1,7 +1,7 @@
 import React from 'react';
-import { OptimizationParams, ScenarioType, Node } from '../types';
+import { OptimizationParams, ScenarioType, Node, AlgorithmType } from '../types';
 import { SCENARIOS } from '../data/scenarios';
-import { Play, RotateCcw, Cpu, Zap, Thermometer, Settings, Globe, Navigation } from 'lucide-react';
+import { Play, RotateCcw, Cpu, Zap, Thermometer, Settings, Globe, Navigation, Brain } from 'lucide-react';
 
 interface ControlPanelProps {
   params: OptimizationParams;
@@ -17,6 +17,13 @@ interface ControlPanelProps {
   startNodeId: number;
   setStartNodeId: (id: number) => void;
 }
+
+const ALGORITHMS: { [key in AlgorithmType]: string } = {
+  quantum_annealing: 'Quantum-Inspired Annealing',
+  simulated_annealing: 'Simulated Annealing',
+  greedy: 'Greedy Baseline',
+  random: 'Random Search'
+};
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
   params,
@@ -39,6 +46,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       [name]: parseFloat(value),
     }));
   };
+
+  const isQuantum = params.algorithm === 'quantum_annealing';
+  const isAnnealing = params.algorithm === 'simulated_annealing';
+  const isGreedy = params.algorithm === 'greedy';
+  const isRandom = params.algorithm === 'random';
 
   return (
     <div className="bg-qpanel border-r border-slate-800 p-6 flex flex-col gap-6 w-full md:w-80 h-full overflow-y-auto shadow-2xl z-10">
@@ -71,6 +83,31 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                <div className="opacity-70 font-normal truncate">{SCENARIOS[key].description}</div>
              </button>
           ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-slate-800 my-2" />
+
+      {/* Algorithm Selector */}
+      <div className="space-y-4">
+        <h2 className="text-slate-400 text-sm uppercase tracking-wider font-semibold flex items-center gap-2">
+          <Brain className="w-4 h-4" /> Optimization Strategy
+        </h2>
+        <select
+          value={params.algorithm}
+          onChange={(e) => setParams(prev => ({ ...prev, algorithm: e.target.value as AlgorithmType }))}
+          disabled={isOptimizing}
+          className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded p-2 focus:ring-1 focus:ring-qcyan outline-none"
+        >
+          {Object.entries(ALGORITHMS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+        <div className="text-[10px] text-slate-500 italic leading-tight">
+          {isQuantum && "Probabilistic tunneling escapes local minima effectively."}
+          {isAnnealing && "Classic cooling schedule. Good exploration, slower convergence."}
+          {isGreedy && "Nearest neighbor selection. Fast but gets stuck easily."}
+          {isRandom && "Stochastic baseline. High variance, usually poor results."}
         </div>
       </div>
 
@@ -130,10 +167,10 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       <div className="space-y-6">
         <h2 className="text-slate-400 text-sm uppercase tracking-wider font-semibold flex items-center gap-2">
-          <Zap className="w-4 h-4" /> Quantum Params
+          <Zap className="w-4 h-4" /> Algorithm Params
         </h2>
 
-        <div>
+        <div className={isGreedy || isRandom ? "opacity-30 pointer-events-none grayscale" : ""}>
           <label className="block text-slate-300 text-xs mb-1 flex justify-between">
             <span>Initial Temperature</span>
             <span className="text-qcyan">{params.init_temp}</span>
@@ -148,12 +185,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               value={params.init_temp}
               onChange={handleChange}
               className="w-full accent-qpurple h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-              disabled={isOptimizing}
+              disabled={isOptimizing || isGreedy || isRandom}
             />
           </div>
         </div>
 
-        <div>
+        <div className={!isQuantum ? "opacity-30 pointer-events-none grayscale" : ""}>
           <label className="block text-slate-300 text-xs mb-1 flex justify-between">
             <span>Tunneling Rate</span>
             <span className="text-qcyan">{params.tunneling_rate}</span>
@@ -167,7 +204,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             value={params.tunneling_rate}
             onChange={handleChange}
             className="w-full accent-qpurple h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-            disabled={isOptimizing}
+            disabled={isOptimizing || !isQuantum}
           />
           <p className="text-[10px] text-slate-500 mt-1">Probability of accepting higher energy states (Quantum Tunneling emulation).</p>
         </div>
