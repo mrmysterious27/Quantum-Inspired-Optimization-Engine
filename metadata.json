@@ -1,0 +1,5 @@
+{
+  "name": "QIOE - Quantum-Inspired Optimization Engine",
+  "description": "A visual simulation of quantum-inspired algorithms solving optimization problems like TSP, powered by Gemini.",
+  "requestFramePermissions": []
+}
