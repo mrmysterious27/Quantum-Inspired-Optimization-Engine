@@ -59,9 +59,9 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
 
-          {/* Arrow Marker for Direction - Made Smaller */}
+          {/* Normal Arrow Marker */}
           <marker
-            id="arrowhead"
+            id="arrowhead-normal"
             viewBox="0 0 4 4"
             refX="2"
             refY="2"
@@ -69,7 +69,20 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
             markerHeight="2.5"
             orient="auto"
           >
-            <path d="M 0 0 L 4 2 L 0 4 z" fill={tunneling ? '#bc13fe' : '#00f0ff'} />
+            <path d="M 0 0 L 4 2 L 0 4 z" fill="#00f0ff" />
+          </marker>
+
+          {/* Tunneling Arrow Marker */}
+          <marker
+            id="arrowhead-tunnel"
+            viewBox="0 0 4 4"
+            refX="2"
+            refY="2"
+            markerWidth="2.5" 
+            markerHeight="2.5"
+            orient="auto"
+          >
+            <path d="M 0 0 L 4 2 L 0 4 z" fill="#bc13fe" />
           </marker>
         </defs>
 
@@ -135,7 +148,7 @@ const Visualizer: React.FC<VisualizerProps> = ({ nodes, route, bestRoute, tunnel
               d={`M ${n1.x} ${n1.y} L ${mx} ${my}`}
               stroke="transparent"
               fill="none"
-              markerEnd="url(#arrowhead)"
+              markerEnd={tunneling ? "url(#arrowhead-tunnel)" : "url(#arrowhead-normal)"}
               className="pointer-events-none"
             />
           );

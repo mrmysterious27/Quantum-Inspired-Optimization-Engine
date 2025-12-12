@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { OptimizationResponse, Node } from '../types';
-import { Activity, Zap, CheckCircle, Brain, Target, Map, Timer, TrendingUp, BarChart3 } from 'lucide-react';
+import { Activity, Zap, CheckCircle, Brain, Target, Map, Timer, TrendingUp, BarChart3, Ruler } from 'lucide-react';
 
 interface MetricsProps {
   data: OptimizationResponse | null;
@@ -19,23 +19,48 @@ interface MetricsProps {
 }
 
 const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, executionTime }) => {
+  
+  // Helper to calculate total route distance
+  const calculateRouteDistance = (routeIds: number[]) => {
+    if (!routeIds || routeIds.length < 2 || !nodes.length) return 0;
+    
+    return routeIds.reduce((total, id, index) => {
+        const nextId = routeIds[(index + 1) % routeIds.length];
+        const n1 = nodes.find(n => n.id === id);
+        const n2 = nodes.find(n => n.id === nextId);
+        
+        if (n1 && n2) {
+            const dist = Math.sqrt(Math.pow(n1.x - n2.x, 2) + Math.pow(n1.y - n2.y, 2));
+            return total + dist;
+        }
+        return total;
+    }, 0);
+  };
+
   // Memoize cumulative calculations to avoid recalculating on every render if not needed
-  const { cumulativeTunneling, chartData, latest, isFinished, routeDetails, performanceStats } = useMemo(() => {
+  const { cumulativeTunneling, chartData, latest, isFinished, routeDetails, performanceStats, currentRealDist, bestRealDist } = useMemo(() => {
     if (!data) return { 
         cumulativeTunneling: 0, 
         chartData: [], 
         latest: null, 
         isFinished: false, 
         routeDetails: [],
-        performanceStats: null
+        performanceStats: null,
+        currentRealDist: 0,
+        bestRealDist: 0
     };
 
     const sliced = data.iterations.slice(0, currentStepIndex + 1);
     const tunnelingCount = sliced.filter(it => it.tunneling).length;
     
     // Calculate route details for the current displayed route
-    const currentRouteIds = data.iterations[currentStepIndex].current_route;
+    const currentIteration = data.iterations[currentStepIndex];
+    const currentRouteIds = currentIteration.current_route;
     
+    // Calculate real-time distances
+    const currentRealDist = calculateRouteDistance(currentRouteIds);
+    const bestRealDist = calculateRouteDistance(currentIteration.best_route);
+
     // Performance Calculations
     const initialEnergy = data.iterations[0].current_energy;
     const finalEnergy = data.final_result.best_energy;
@@ -56,12 +81,14 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, execut
     return {
       cumulativeTunneling: tunnelingCount,
       chartData: sliced,
-      latest: data.iterations[currentStepIndex],
+      latest: currentIteration,
       isFinished: currentStepIndex === data.iterations.length - 1,
       routeDetails: currentRouteIds,
-      performanceStats
+      performanceStats,
+      currentRealDist,
+      bestRealDist
     };
-  }, [data, currentStepIndex]);
+  }, [data, currentStepIndex, nodes]);
 
   if (!data || !latest) {
     return (
@@ -85,9 +112,9 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, execut
         </div>
       </div>
 
-      {/* NEW: Performance Metrics Panel (Judge-Killer) */}
+      {/* Performance Metrics Panel */}
       {performanceStats && (
-        <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-lg p-3 border border-slate-700/50 shadow-lg relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-lg p-3 border border-slate-700/50 shadow-lg relative overflow-hidden flex-shrink-0">
              <div className="absolute top-0 right-0 p-1 opacity-20">
                 <BarChart3 className="w-16 h-16 text-slate-400" />
              </div>
@@ -109,7 +136,7 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, execut
                 <div className="flex flex-col">
                      <span className="text-[10px] text-slate-500 uppercase">Dist. Reduction</span>
                      <div className="text-lg font-bold text-slate-200">
-                        {Math.round(performanceStats.initialEnergy)} <span className="text-slate-500 text-xs">→</span> {Math.round(performanceStats.finalEnergy)}
+                        {Math.round(performanceStats.initialEnergy)} <span className="text-slate-500 text-xs">→</span> {Math.round(performanceStats.finalEnergy)} <span className="text-[9px] text-slate-500">km</span>
                      </div>
                 </div>
 
@@ -134,20 +161,22 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, execut
       )}
 
       {/* Live Playback Stats Cards */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2 flex-shrink-0">
         <div className="bg-slate-800/30 p-2 rounded border border-slate-800">
-          <div className="text-[10px] text-slate-500 uppercase mb-0.5">Current</div>
+          <div className="text-[10px] text-slate-500 uppercase mb-0.5 flex items-center gap-1">
+            Current Dist <Ruler className="w-2 h-2" />
+          </div>
           <div className="text-sm font-mono text-white">
-            {latest.current_energy.toFixed(0)}
+            {currentRealDist.toFixed(1)} <span className="text-xs text-slate-500">km</span>
           </div>
         </div>
         
         <div className={`p-2 rounded border transition-colors ${isFinished ? 'bg-qcyan/5 border-qcyan/30' : 'bg-slate-800/30 border-slate-800'}`}>
           <div className="text-[10px] text-slate-500 uppercase mb-0.5 flex items-center gap-1">
-             Best <CheckCircle className="w-2 h-2" />
+             Best Dist <CheckCircle className="w-2 h-2" />
           </div>
           <div className={`text-sm font-mono ${isFinished ? 'text-qcyan' : 'text-slate-300'}`}>
-            {latest.best_energy.toFixed(0)}
+            {bestRealDist.toFixed(1)} <span className="text-xs opacity-70">km</span>
           </div>
         </div>
 
@@ -169,53 +198,57 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, execut
       </div>
 
       {/* Main Chart */}
-      <div className="flex-1 min-h-[120px] bg-slate-900/50 rounded-lg p-3 border border-slate-800 relative group">
-        <h3 className="text-[10px] font-semibold text-slate-500 mb-1 absolute top-2 left-2 z-10 opacity-60">ENERGY LANDSCAPE</h3>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis 
-              dataKey="step" 
-              stroke="#475569" 
-              tick={{fontSize: 9}}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis 
-              stroke="#475569" 
-              domain={['auto', 'auto']} 
-              tick={{fontSize: 9}}
-              tickLine={false}
-              axisLine={false}
-              width={25}
-            />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', color: '#f1f5f9', borderRadius: '4px' }}
-              itemStyle={{ fontSize: '11px' }}
-              cursor={{ stroke: '#334155', strokeWidth: 1 }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="current_energy" 
-              stroke="#bc13fe" 
-              strokeWidth={1.5} 
-              dot={false}
-              animationDuration={0}
-              name="Energy"
-              isAnimationActive={false}
-            />
-            <Line 
-              type="stepAfter" 
-              dataKey="best_energy" 
-              stroke="#00f0ff" 
-              strokeWidth={2} 
-              dot={false}
-              animationDuration={0}
-              name="Minima"
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div className="flex-1 min-h-[150px] bg-slate-900/50 rounded-lg p-3 border border-slate-800 relative group flex flex-col">
+        <h3 className="text-[10px] font-semibold text-slate-500 mb-2 z-10 opacity-60">ENERGY LANDSCAPE</h3>
+        <div className="flex-1 w-full min-h-0 relative">
+          <div className="absolute inset-0">
+            <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis 
+                dataKey="step" 
+                stroke="#475569" 
+                tick={{fontSize: 9}}
+                tickLine={false}
+                axisLine={false}
+                />
+                <YAxis 
+                stroke="#475569" 
+                domain={['auto', 'auto']} 
+                tick={{fontSize: 9}}
+                tickLine={false}
+                axisLine={false}
+                width={25}
+                />
+                <Tooltip 
+                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', color: '#f1f5f9', borderRadius: '4px' }}
+                itemStyle={{ fontSize: '11px' }}
+                cursor={{ stroke: '#334155', strokeWidth: 1 }}
+                />
+                <Line 
+                type="monotone" 
+                dataKey="current_energy" 
+                stroke="#bc13fe" 
+                strokeWidth={1.5} 
+                dot={false}
+                animationDuration={0}
+                name="Energy"
+                isAnimationActive={false}
+                />
+                <Line 
+                type="stepAfter" 
+                dataKey="best_energy" 
+                stroke="#00f0ff" 
+                strokeWidth={2} 
+                dot={false}
+                animationDuration={0}
+                name="Minima"
+                isAnimationActive={false}
+                />
+            </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
       
       {/* Route Details Log */}
@@ -265,7 +298,7 @@ const Metrics: React.FC<MetricsProps> = ({ data, currentStepIndex, nodes, execut
       </div>
 
       {/* Explanation Text */}
-      <div className="bg-slate-800/30 p-3 rounded-lg border border-slate-800 text-xs text-slate-300 transition-all hover:bg-slate-800/50">
+      <div className="bg-slate-800/30 p-3 rounded-lg border border-slate-800 text-xs text-slate-300 transition-all hover:bg-slate-800/50 flex-shrink-0">
         <div className="flex items-start gap-2">
           <div className="mt-1 min-w-[3px] h-[3px] rounded-full bg-qcyan" />
           <p>

@@ -5,7 +5,7 @@ import ControlPanel from './components/ControlPanel';
 import Visualizer from './components/Visualizer';
 import Metrics from './components/Metrics';
 import { runOptimization } from './services/geminiService';
-import { PlayCircle, PauseCircle, SkipForward } from 'lucide-react';
+import { PlayCircle, PauseCircle, SkipForward, SkipBack, StepBack, StepForward } from 'lucide-react';
 
 const INITIAL_NODES_COUNT = 15;
 
@@ -19,6 +19,7 @@ const generateNodes = (count: number): Node[] => {
 
 const App: React.FC = () => {
   const [nodeCount, setNodeCount] = useState(INITIAL_NODES_COUNT);
+  const [playbackSpeed, setPlaybackSpeed] = useState(200); // Default 200ms per frame
   
   const [state, setState] = useState<AppState>({
     nodes: [],
@@ -131,13 +132,13 @@ const App: React.FC = () => {
           // Advance frame
           return { ...prev, playbackIndex: prev.playbackIndex + 1 };
         });
-      }, 2000); // 2000ms (2s) per frame as requested
+      }, playbackSpeed);
     }
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [state.isPlaying, state.result]);
+  }, [state.isPlaying, state.result, playbackSpeed]);
 
   // Derived state for Visualizer
   const currentIteration = state.result && state.playbackIndex >= 0 
@@ -171,7 +172,7 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden p-4 gap-4">
         
         {/* Top Bar: Playback Controls */}
-        <div className="flex justify-between items-center bg-qpanel p-3 rounded-lg border border-slate-800">
+        <div className="flex flex-col md:flex-row gap-3 justify-between items-center bg-qpanel p-3 rounded-lg border border-slate-800 shrink-0">
           <div className="text-sm font-mono text-slate-400">
             CONTEXT: <span className="text-white mr-4">{SCENARIOS[state.scenario].label}</span>
             ALGORITHM: <span className="text-qcyan mr-4 uppercase">{state.params.algorithm.replace('_', ' ')}</span>
@@ -181,29 +182,82 @@ const App: React.FC = () => {
           </div>
           
           {state.result && (
-             <div className="flex items-center gap-4">
-               <span className="text-xs text-slate-500 font-mono">
+             <div className="flex flex-wrap items-center gap-4 justify-center">
+               {/* Speed Control */}
+               <div className="flex items-center gap-2 border-r border-slate-700 pr-4 mr-1">
+                 <span className="text-[10px] text-slate-500 uppercase font-bold hidden sm:inline">Speed</span>
+                 <input 
+                   type="range" 
+                   min="50" 
+                   max="2000" 
+                   step="50" 
+                   value={playbackSpeed}
+                   onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+                   className="w-20 sm:w-24 accent-qcyan h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                 />
+                 <span className="text-[10px] text-slate-400 w-10 text-right font-mono">{playbackSpeed}ms</span>
+               </div>
+
+               <span className="text-xs text-slate-500 font-mono hidden xl:inline">
                  FRAME {state.playbackIndex + 1} / {state.result.iterations.length}
                </span>
-               <button 
-                 onClick={() => setState(prev => {
-                   // If play is clicked at the end, restart
-                   const isAtEnd = prev.result && prev.playbackIndex >= prev.result.iterations.length - 1;
-                   if (isAtEnd) {
-                      return { ...prev, playbackIndex: 0, isPlaying: true };
+               
+               <div className="flex items-center gap-1">
+                 {/* First Frame */}
+                 <button 
+                   onClick={() => setState(prev => ({...prev, playbackIndex: 0, isPlaying: false}))}
+                   className="p-1 hover:text-qcyan transition-colors text-slate-400"
+                   title="First Frame"
+                 >
+                    <SkipBack className="w-5 h-5" />
+                 </button>
+
+                 {/* Previous Frame */}
+                 <button 
+                   onClick={() => setState(prev => ({...prev, playbackIndex: Math.max(0, prev.playbackIndex - 1), isPlaying: false}))}
+                   className="p-1 hover:text-qcyan transition-colors text-slate-400"
+                   title="Previous Frame"
+                 >
+                    <StepBack className="w-5 h-5" />
+                 </button>
+
+                 {/* Play/Pause */}
+                 <button 
+                   onClick={() => setState(prev => {
+                     // If play is clicked at the end, restart
+                     const isAtEnd = prev.result && prev.playbackIndex >= prev.result.iterations.length - 1;
+                     if (isAtEnd) {
+                        return { ...prev, playbackIndex: 0, isPlaying: true };
+                     }
+                     return { ...prev, isPlaying: !prev.isPlaying };
+                   })}
+                   className="p-1 hover:text-qcyan transition-colors mx-2"
+                   title={state.isPlaying ? "Pause" : "Play"}
+                 >
+                   {state.isPlaying ? 
+                     <PauseCircle className="w-8 h-8 fill-current text-qcyan" /> : 
+                     <PlayCircle className="w-8 h-8 fill-current text-white" />
                    }
-                   return { ...prev, isPlaying: !prev.isPlaying };
-                 })}
-                 className="hover:text-qcyan transition-colors"
-               >
-                 {state.isPlaying ? <PauseCircle className="w-6 h-6" /> : <PlayCircle className="w-6 h-6" />}
-               </button>
-               <button 
-                 onClick={() => setState(prev => ({...prev, playbackIndex: prev.result!.iterations.length - 1, isPlaying: false}))}
-                 className="hover:text-qcyan transition-colors"
-               >
-                  <SkipForward className="w-6 h-6" />
-               </button>
+                 </button>
+
+                 {/* Next Frame */}
+                 <button 
+                   onClick={() => setState(prev => ({...prev, playbackIndex: Math.min((prev.result?.iterations.length || 1) - 1, prev.playbackIndex + 1), isPlaying: false}))}
+                   className="p-1 hover:text-qcyan transition-colors text-slate-400"
+                   title="Next Frame"
+                 >
+                    <StepForward className="w-5 h-5" />
+                 </button>
+
+                 {/* Last Frame */}
+                 <button 
+                   onClick={() => setState(prev => ({...prev, playbackIndex: (prev.result?.iterations.length || 1) - 1, isPlaying: false}))}
+                   className="p-1 hover:text-qcyan transition-colors text-slate-400"
+                   title="Last Frame"
+                 >
+                    <SkipForward className="w-5 h-5" />
+                 </button>
+               </div>
              </div>
           )}
         </div>

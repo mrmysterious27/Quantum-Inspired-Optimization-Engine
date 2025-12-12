@@ -64,7 +64,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Scenario Selector */}
       <div className="space-y-4">
         <h2 className="text-slate-400 text-sm uppercase tracking-wider font-semibold flex items-center gap-2">
-          <Globe className="w-4 h-4" /> Real-World Context
+          <Globe className="w-4 h-4" /> SCENARIOS
         </h2>
         
         <div className="grid grid-cols-1 gap-2">
@@ -80,7 +80,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                }`}
              >
                <div className="text-sm font-bold mb-0.5">{SCENARIOS[key].label}</div>
-               <div className="opacity-70 font-normal truncate">{SCENARIOS[key].description}</div>
+               <div className="opacity-70 font-normal leading-tight">{SCENARIOS[key].description}</div>
              </button>
           ))}
         </div>
@@ -91,7 +91,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Algorithm Selector */}
       <div className="space-y-4">
         <h2 className="text-slate-400 text-sm uppercase tracking-wider font-semibold flex items-center gap-2">
-          <Brain className="w-4 h-4" /> Optimization Strategy
+          <Brain className="w-4 h-4" /> ALGORITHM
         </h2>
         <select
           value={params.algorithm}
@@ -116,9 +116,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Topology & Configuration */}
       <div className="space-y-4">
         <h2 className="text-slate-400 text-sm uppercase tracking-wider font-semibold flex items-center gap-2">
-          <Settings className="w-4 h-4" /> Topology & Route
+          <Settings className="w-4 h-4" /> TOPOLOGY
         </h2>
         
+        {scenario !== 'random' && (
+          <div className="p-3 bg-slate-800/50 rounded border border-slate-700/50 text-xs text-slate-400 italic">
+            Fixed node topology active for <span className="text-slate-300 not-italic font-medium">{SCENARIOS[scenario].label}</span>.
+          </div>
+        )}
+
         {scenario === 'random' && (
           <div>
             <label className="block text-slate-300 text-xs mb-1">Node Count: {nodeCount}</label>
@@ -167,7 +173,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       <div className="space-y-6">
         <h2 className="text-slate-400 text-sm uppercase tracking-wider font-semibold flex items-center gap-2">
-          <Zap className="w-4 h-4" /> Algorithm Params
+          <Zap className="w-4 h-4" /> QUANTUM PARAMS
         </h2>
 
         <div className={isGreedy || isRandom ? "opacity-30 pointer-events-none grayscale" : ""}>
